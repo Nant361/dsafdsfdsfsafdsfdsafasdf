@@ -1,0 +1,25 @@
+name: pddikti-api
+services:
+  - name: pddikti-api
+    github:
+      repository: Nant361/dsafdsfdsfsafdsfdsafasdf
+      branch: main
+    instance_type: nano
+    scalability:
+      min_instances: 1
+      max_instances: 1
+    ports:
+      - port: 8000
+        protocol: http
+    healthcheck:
+      http:
+        path: /
+        port: 8000
+    builder:
+      name: docker
+      dockerfile_path: Dockerfile
+      build_args:
+        - name: PYTHON_VERSION
+          value: "3.11"
+      registry:
+        name: koyeb 
