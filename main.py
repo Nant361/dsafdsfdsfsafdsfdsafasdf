@@ -7,11 +7,12 @@ import signal
 import sys
 import socket
 import threading
+import time
 
-# Setup logging
+# Setup logging with more detailed format
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+    level=logging.DEBUG  # Set to DEBUG for more detailed logs
 )
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,11 @@ def run_admin_bot():
     """Run the admin bot"""
     try:
         logger.info("Starting Admin Bot...")
+        logger.debug(f"Admin Bot Token: {admin_bot.ADMIN_TOKEN[:10]}...")
+        
+        # Add delay to prevent simultaneous polling
+        time.sleep(1)
+        
         application = Application.builder().token(admin_bot.ADMIN_TOKEN).build()
 
         # Add handlers
@@ -60,10 +66,21 @@ def run_admin_bot():
         
         for handler in handlers:
             application.add_handler(handler)
+            logger.debug(f"Added handler: {handler.__class__.__name__}")
 
         logger.info("Admin Bot is ready!")
+        logger.debug("Starting polling on port 8443")
+        
         # Use a different port for admin bot
-        application.run_polling(allowed_updates=admin_bot.Update.ALL_TYPES, port=8443)
+        application.run_polling(
+            allowed_updates=admin_bot.Update.ALL_TYPES,
+            port=8443,
+            drop_pending_updates=True,
+            read_timeout=30,
+            write_timeout=30,
+            connect_timeout=30,
+            pool_timeout=30
+        )
             
     except Exception as e:
         logger.error(f"Error in Admin Bot: {str(e)}", exc_info=True)
@@ -73,6 +90,11 @@ def run_student_bot():
     """Run the student search bot"""
     try:
         logger.info("Starting Student Search Bot...")
+        logger.debug(f"Student Bot Token: {telegram_bot.TOKEN[:10]}...")
+        
+        # Add delay to prevent simultaneous polling
+        time.sleep(2)
+        
         application = Application.builder().token(telegram_bot.TOKEN).build()
 
         # Add handlers
@@ -95,10 +117,21 @@ def run_student_bot():
         
         for handler in handlers:
             application.add_handler(handler)
+            logger.debug(f"Added handler: {handler.__class__.__name__}")
 
         logger.info("Student Search Bot is ready!")
+        logger.debug("Starting polling on port 8444")
+        
         # Use a different port for student bot
-        application.run_polling(allowed_updates=telegram_bot.Update.ALL_TYPES, port=8444)
+        application.run_polling(
+            allowed_updates=telegram_bot.Update.ALL_TYPES,
+            port=8444,
+            drop_pending_updates=True,
+            read_timeout=30,
+            write_timeout=30,
+            connect_timeout=30,
+            pool_timeout=30
+        )
             
     except Exception as e:
         logger.error(f"Error in Student Search Bot: {str(e)}", exc_info=True)
@@ -121,13 +154,18 @@ def main():
         # Start health check server in a separate thread
         health_thread = threading.Thread(target=health_check_server, daemon=True)
         health_thread.start()
+        logger.debug("Health check thread started")
         
         # Create processes for each bot
         admin_process = multiprocessing.Process(target=run_admin_bot, name="AdminBot")
         student_process = multiprocessing.Process(target=run_student_bot, name="StudentBot")
         
-        # Start both processes
+        # Start both processes with delay between them
+        logger.debug("Starting Admin Bot process...")
         admin_process.start()
+        time.sleep(1)  # Wait 1 second before starting student bot
+        
+        logger.debug("Starting Student Bot process...")
         student_process.start()
         
         # Wait for both processes to complete

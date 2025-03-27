@@ -3,6 +3,14 @@ import os
 from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import logging
+
+# Setup logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+    level=logging.DEBUG
+)
+logger = logging.getLogger(__name__)
 
 # Bot token
 ADMIN_TOKEN = "7225070551:AAHOwwMUwQBZqYsKksd7HRjJEdt2kutjLp4"
@@ -16,41 +24,52 @@ LOGS_FILE = "user_logs.json"
 
 def load_allowed_users():
     """Load allowed users from JSON file"""
+    logger.debug(f"Loading allowed users from {ALLOWED_USERS_FILE}")
     if os.path.exists(ALLOWED_USERS_FILE):
         try:
             with open(ALLOWED_USERS_FILE, 'r') as f:
                 data = json.load(f)
                 if isinstance(data, dict) and "users" in data:
+                    logger.debug(f"Loaded {len(data['users'])} allowed users")
                     return data
                 elif isinstance(data, list):
+                    logger.debug(f"Converting list to dict with {len(data)} users")
                     return {"users": data}
                 else:
-                    print("Invalid data structure in allowed_users.json")
+                    logger.warning("Invalid data structure in allowed_users.json")
                     return {"users": []}
         except Exception as e:
-            print(f"Error reading allowed_users.json: {str(e)}")
+            logger.error(f"Error reading allowed_users.json: {str(e)}")
             return {"users": []}
+    logger.warning(f"File {ALLOWED_USERS_FILE} does not exist")
     return {"users": []}
 
 def save_allowed_users(users):
     """Save allowed users to JSON file"""
+    logger.debug(f"Saving {len(users.get('users', []))} allowed users")
     with open(ALLOWED_USERS_FILE, 'w') as f:
         json.dump(users, f, indent=4)
 
 def load_logs():
     """Load logs from JSON file"""
+    logger.debug(f"Loading logs from {LOGS_FILE}")
     if os.path.exists(LOGS_FILE):
         with open(LOGS_FILE, 'r') as f:
-            return json.load(f)
+            logs = json.load(f)
+            logger.debug(f"Loaded {len(logs)} log entries")
+            return logs
+    logger.warning(f"File {LOGS_FILE} does not exist")
     return []
 
 def save_logs(logs):
     """Save logs to JSON file"""
+    logger.debug(f"Saving {len(logs)} log entries")
     with open(LOGS_FILE, 'w') as f:
         json.dump(logs, f, indent=4)
 
 def log_activity(user_id, username, action, details=""):
     """Log user activity"""
+    logger.debug(f"Logging activity: {action} by user {username} (ID: {user_id})")
     logs = load_logs()
     logs.append({
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -63,7 +82,12 @@ def log_activity(user_id, username, action, details=""):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
-    if update.effective_user.id != ADMIN_ID:
+    user_id = update.effective_user.id
+    username = update.effective_user.username or "Unknown"
+    logger.info(f"Start command received from user {username} (ID: {user_id})")
+    
+    if user_id != ADMIN_ID:
+        logger.warning(f"Unauthorized access attempt from user {username} (ID: {user_id})")
         await update.message.reply_text("❌ Maaf, Anda tidak memiliki akses ke bot ini.")
         return
         
@@ -255,23 +279,39 @@ async def get_chat_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     """Start the bot"""
     try:
+        logger.info("Initializing Admin Bot...")
+        logger.debug(f"Admin Bot Token: {ADMIN_TOKEN[:10]}...")
+        
         # Create the Application
         application = Application.builder().token(ADMIN_TOKEN).build()
 
         # Add handlers
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(CommandHandler("list", list_users))
-        application.add_handler(CommandHandler("add", add_user))
-        application.add_handler(CommandHandler("remove", remove_user))
-        application.add_handler(CommandHandler("logs", view_logs))
-        application.add_handler(CommandHandler("getid", get_user_id))
-        application.add_handler(CommandHandler("chatid", get_chat_id))
+        handlers = [
+            CommandHandler("start", start),
+            CommandHandler("list", list_users),
+            CommandHandler("add", add_user),
+            CommandHandler("remove", remove_user),
+            CommandHandler("logs", view_logs),
+            CommandHandler("getid", get_user_id),
+            CommandHandler("chatid", get_chat_id)
+        ]
+        
+        for handler in handlers:
+            application.add_handler(handler)
+            logger.debug(f"Added handler: {handler.__class__.__name__}")
 
         # Start the bot
-        print("Starting Admin Bot...")
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        logger.info("Starting Admin Bot...")
+        application.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True,
+            read_timeout=30,
+            write_timeout=30,
+            connect_timeout=30,
+            pool_timeout=30
+        )
     except Exception as e:
-        print(f"Error starting admin bot: {str(e)}")
+        logger.error(f"Error starting admin bot: {str(e)}", exc_info=True)
 
 if __name__ == "__main__":
     main() 
