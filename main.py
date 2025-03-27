@@ -73,6 +73,8 @@ async def run_admin_bot():
         logger.debug("Starting polling")
         
         # Start polling with different interval
+        await application.initialize()
+        await application.start()
         await application.run_polling(
             allowed_updates=admin_bot.Update.ALL_TYPES,
             drop_pending_updates=True,
@@ -85,7 +87,7 @@ async def run_admin_bot():
             
     except Exception as e:
         logger.error(f"Error in Admin Bot: {str(e)}", exc_info=True)
-        sys.exit(1)
+        raise  # Re-raise the exception instead of sys.exit(1)
 
 async def run_student_bot():
     """Run the student search bot"""
@@ -124,6 +126,8 @@ async def run_student_bot():
         logger.debug("Starting polling")
         
         # Start polling with different interval
+        await application.initialize()
+        await application.start()
         await application.run_polling(
             allowed_updates=telegram_bot.Update.ALL_TYPES,
             drop_pending_updates=True,
@@ -136,7 +140,7 @@ async def run_student_bot():
             
     except Exception as e:
         logger.error(f"Error in Student Search Bot: {str(e)}", exc_info=True)
-        sys.exit(1)
+        raise  # Re-raise the exception instead of sys.exit(1)
 
 def signal_handler(signum, frame):
     """Handle termination signals"""
@@ -171,4 +175,10 @@ async def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("\nBots stopped by user")
+    except Exception as e:
+        logger.error(f"Fatal error: {str(e)}", exc_info=True)
+        sys.exit(1) 
