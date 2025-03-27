@@ -62,7 +62,8 @@ def run_admin_bot():
             application.add_handler(handler)
 
         logger.info("Admin Bot is ready!")
-        application.run_polling(allowed_updates=admin_bot.Update.ALL_TYPES)
+        # Use a different port for admin bot
+        application.run_polling(allowed_updates=admin_bot.Update.ALL_TYPES, port=8443)
             
     except Exception as e:
         logger.error(f"Error in Admin Bot: {str(e)}", exc_info=True)
@@ -96,7 +97,8 @@ def run_student_bot():
             application.add_handler(handler)
 
         logger.info("Student Search Bot is ready!")
-        application.run_polling(allowed_updates=telegram_bot.Update.ALL_TYPES)
+        # Use a different port for student bot
+        application.run_polling(allowed_updates=telegram_bot.Update.ALL_TYPES, port=8444)
             
     except Exception as e:
         logger.error(f"Error in Student Search Bot: {str(e)}", exc_info=True)
