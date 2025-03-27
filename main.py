@@ -42,107 +42,132 @@ def health_check_server():
         if 'server' in locals():
             server.close()
 
-async def run_admin_bot():
-    """Run the admin bot"""
+async def setup_admin_bot():
+    """Setup the admin bot application"""
+    logger.info("Setting up Admin Bot...")
+    logger.debug(f"Admin Bot Token: {admin_bot.ADMIN_TOKEN[:10]}...")
+    
+    application = Application.builder().token(admin_bot.ADMIN_TOKEN).build()
+
+    # Add handlers
+    handlers = [
+        CommandHandler("start", admin_bot.start),
+        CommandHandler("list", admin_bot.list_users),
+        CommandHandler("add", admin_bot.add_user),
+        CommandHandler("remove", admin_bot.remove_user),
+        CommandHandler("logs", admin_bot.view_logs),
+        CommandHandler("getid", admin_bot.get_user_id),
+        CommandHandler("chatid", admin_bot.get_chat_id),
+        MessageHandler(admin_bot.filters.FORWARDED, admin_bot.get_user_id)
+    ]
+    
+    for handler in handlers:
+        application.add_handler(handler)
+        logger.debug(f"Added handler for Admin Bot: {handler.__class__.__name__}")
+
+    logger.info("Admin Bot is ready!")
+    
+    # Initialize the application
+    await application.initialize()
+    await application.start()
+    
+    return application
+
+async def setup_student_bot():
+    """Setup the student search bot application"""
+    logger.info("Setting up Student Search Bot...")
+    logger.debug(f"Student Bot Token: {telegram_bot.TOKEN[:10]}...")
+    
+    application = Application.builder().token(telegram_bot.TOKEN).build()
+
+    # Add handlers
+    handlers = [
+        CommandHandler("start", telegram_bot.start),
+        CommandHandler("cari", telegram_bot.search),
+        CommandHandler("regist", telegram_bot.register_user),
+        CallbackQueryHandler(telegram_bot.button_callback),
+        MessageHandler(telegram_bot.filters.TEXT & ~telegram_bot.filters.COMMAND, telegram_bot.handle_message),
+        MessageHandler(telegram_bot.filters.PHOTO, telegram_bot.handle_message),
+        MessageHandler(telegram_bot.filters.Document.ALL, telegram_bot.handle_message),
+        MessageHandler(telegram_bot.filters.VOICE, telegram_bot.handle_message),
+        MessageHandler(telegram_bot.filters.VIDEO, telegram_bot.handle_message),
+        MessageHandler(telegram_bot.filters.Sticker.ALL, telegram_bot.handle_message),
+        MessageHandler(telegram_bot.filters.LOCATION, telegram_bot.handle_message),
+        MessageHandler(telegram_bot.filters.CONTACT, telegram_bot.handle_message),
+        MessageHandler(telegram_bot.filters.ANIMATION, telegram_bot.handle_message),
+        MessageHandler(telegram_bot.filters.AUDIO, telegram_bot.handle_message)
+    ]
+    
+    for handler in handlers:
+        application.add_handler(handler)
+        logger.debug(f"Added handler for Student Bot: {handler.__class__.__name__}")
+
+    logger.info("Student Search Bot is ready!")
+    
+    # Initialize the application
+    await application.initialize()
+    await application.start()
+    
+    return application
+
+async def poll_updates(app, name, interval=1.0):
+    """Custom polling implementation for a bot application"""
+    logger.info(f"Starting polling for {name} with interval {interval} seconds")
+    
+    # Setup parameters
+    allowed_updates = None
+    timeout = 30
+    read_timeout = timeout + 5
+    
+    if name == "Admin Bot":
+        allowed_updates = admin_bot.Update.ALL_TYPES
+    else:
+        allowed_updates = telegram_bot.Update.ALL_TYPES
+    
     try:
-        logger.info("Starting Admin Bot...")
-        logger.debug(f"Admin Bot Token: {admin_bot.ADMIN_TOKEN[:10]}...")
-        
-        # Add delay to prevent simultaneous polling
-        await asyncio.sleep(2)
-        
-        application = Application.builder().token(admin_bot.ADMIN_TOKEN).build()
-
-        # Add handlers
-        handlers = [
-            CommandHandler("start", admin_bot.start),
-            CommandHandler("list", admin_bot.list_users),
-            CommandHandler("add", admin_bot.add_user),
-            CommandHandler("remove", admin_bot.remove_user),
-            CommandHandler("logs", admin_bot.view_logs),
-            CommandHandler("getid", admin_bot.get_user_id),
-            CommandHandler("chatid", admin_bot.get_chat_id),
-            MessageHandler(admin_bot.filters.FORWARDED, admin_bot.get_user_id)
-        ]
-        
-        for handler in handlers:
-            application.add_handler(handler)
-            logger.debug(f"Added handler: {handler.__class__.__name__}")
-
-        logger.info("Admin Bot is ready!")
-        logger.debug("Starting polling")
-        
-        # Start polling with different interval
-        await application.initialize()
-        await application.start()
-        await application.run_polling(
-            allowed_updates=admin_bot.Update.ALL_TYPES,
-            drop_pending_updates=True,
-            read_timeout=30,
-            write_timeout=30,
-            connect_timeout=30,
-            pool_timeout=30,
-            poll_interval=1.0,  # Poll every 1 second
-            close_loop=False  # Don't close the event loop
-        )
+        # Main polling loop
+        while True:
+            try:
+                # Log polling
+                logger.debug(f"{name} polling for updates...")
+                
+                # Get updates directly using the bot's get_updates method
+                updates = await app.bot.get_updates(
+                    timeout=timeout,
+                    read_timeout=read_timeout,
+                    allowed_updates=allowed_updates,
+                    offset=-1,  # Get only latest updates
+                    limit=10,
+                )
+                
+                # Process each update
+                for update in updates:
+                    await app.process_update(update)
+                    logger.debug(f"{name} processed update: {update.update_id}")
+                
+            except asyncio.CancelledError:
+                logger.warning(f"{name} polling task was cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in {name} polling: {str(e)}", exc_info=True)
             
-    except Exception as e:
-        logger.error(f"Error in Admin Bot: {str(e)}", exc_info=True)
-        raise  # Re-raise the exception instead of sys.exit(1)
+            # Wait before next polling
+            await asyncio.sleep(interval)
+    
+    except asyncio.CancelledError:
+        logger.info(f"{name} polling stopped")
+    finally:
+        logger.info(f"{name} polling has ended")
 
-async def run_student_bot():
-    """Run the student search bot"""
+async def shutdown_bot(app, name):
+    """Properly shutdown a bot application"""
     try:
-        logger.info("Starting Student Search Bot...")
-        logger.debug(f"Student Bot Token: {telegram_bot.TOKEN[:10]}...")
-        
-        # Add delay to prevent simultaneous polling
-        await asyncio.sleep(3)
-        
-        application = Application.builder().token(telegram_bot.TOKEN).build()
-
-        # Add handlers
-        handlers = [
-            CommandHandler("start", telegram_bot.start),
-            CommandHandler("cari", telegram_bot.search),
-            CommandHandler("regist", telegram_bot.register_user),
-            CallbackQueryHandler(telegram_bot.button_callback),
-            MessageHandler(telegram_bot.filters.TEXT & ~telegram_bot.filters.COMMAND, telegram_bot.handle_message),
-            MessageHandler(telegram_bot.filters.PHOTO, telegram_bot.handle_message),
-            MessageHandler(telegram_bot.filters.Document.ALL, telegram_bot.handle_message),
-            MessageHandler(telegram_bot.filters.VOICE, telegram_bot.handle_message),
-            MessageHandler(telegram_bot.filters.VIDEO, telegram_bot.handle_message),
-            MessageHandler(telegram_bot.filters.Sticker.ALL, telegram_bot.handle_message),
-            MessageHandler(telegram_bot.filters.LOCATION, telegram_bot.handle_message),
-            MessageHandler(telegram_bot.filters.CONTACT, telegram_bot.handle_message),
-            MessageHandler(telegram_bot.filters.ANIMATION, telegram_bot.handle_message),
-            MessageHandler(telegram_bot.filters.AUDIO, telegram_bot.handle_message)
-        ]
-        
-        for handler in handlers:
-            application.add_handler(handler)
-            logger.debug(f"Added handler: {handler.__class__.__name__}")
-
-        logger.info("Student Search Bot is ready!")
-        logger.debug("Starting polling")
-        
-        # Start polling with different interval
-        await application.initialize()
-        await application.start()
-        await application.run_polling(
-            allowed_updates=telegram_bot.Update.ALL_TYPES,
-            drop_pending_updates=True,
-            read_timeout=30,
-            write_timeout=30,
-            connect_timeout=30,
-            pool_timeout=30,
-            poll_interval=1.5,  # Poll every 1.5 seconds
-            close_loop=False  # Don't close the event loop
-        )
-            
+        logger.info(f"Shutting down {name}...")
+        await app.stop()
+        await app.shutdown()
+        logger.info(f"{name} has been shut down")
     except Exception as e:
-        logger.error(f"Error in Student Search Bot: {str(e)}", exc_info=True)
-        raise  # Re-raise the exception instead of sys.exit(1)
+        logger.error(f"Error shutting down {name}: {str(e)}", exc_info=True)
 
 def signal_handler(signum, frame):
     """Handle termination signals"""
@@ -151,6 +176,11 @@ def signal_handler(signum, frame):
 
 async def main():
     """Run both bots concurrently"""
+    admin_app = None
+    student_app = None
+    admin_task = None
+    student_task = None
+    
     try:
         # Register signal handlers
         signal.signal(signal.SIGINT, signal_handler)
@@ -163,35 +193,47 @@ async def main():
         health_thread.start()
         logger.debug("Health check thread started")
         
-        # Create tasks for both bots
-        admin_task = asyncio.create_task(run_admin_bot())
-        student_task = asyncio.create_task(run_student_bot())
+        # Setup both bots
+        admin_app = await setup_admin_bot()
+        await asyncio.sleep(2)  # Delay to prevent simultaneous initialization
         
-        # Wait for both tasks to complete
+        student_app = await setup_student_bot()
+        await asyncio.sleep(1)  # Another small delay
+        
+        # Start polling tasks with different intervals
+        admin_task = asyncio.create_task(poll_updates(admin_app, "Admin Bot", interval=1.0))
+        student_task = asyncio.create_task(poll_updates(student_app, "Student Bot", interval=1.5))
+        
+        # Wait for both tasks to complete (which they won't unless cancelled)
         await asyncio.gather(admin_task, student_task)
         
     except KeyboardInterrupt:
         logger.info("\nBots stopped by user")
     except Exception as e:
         logger.error(f"Error in main process: {str(e)}", exc_info=True)
-        sys.exit(1)
+    finally:
+        # Clean shutdown
+        if admin_task and not admin_task.done():
+            admin_task.cancel()
+            
+        if student_task and not student_task.done():
+            student_task.cancel()
+            
+        # Small delay to let tasks cancel properly
+        await asyncio.sleep(0.5)
+        
+        # Shut down applications
+        if admin_app:
+            await shutdown_bot(admin_app, "Admin Bot")
+            
+        if student_app:
+            await shutdown_bot(student_app, "Student Bot")
 
 if __name__ == "__main__":
     try:
-        # Create and set event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # Run the main function
-        loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("\nBots stopped by user")
     except Exception as e:
         logger.error(f"Fatal error: {str(e)}", exc_info=True)
-        sys.exit(1)
-    finally:
-        # Clean up the event loop
-        try:
-            loop.close()
-        except Exception as e:
-            logger.error(f"Error closing event loop: {str(e)}") 
+        sys.exit(1) 
