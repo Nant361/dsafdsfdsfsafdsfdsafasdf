@@ -8,6 +8,7 @@ import sys
 import socket
 import threading
 import time
+import asyncio
 
 # Setup logging with more detailed format
 logging.basicConfig(
@@ -41,14 +42,14 @@ def health_check_server():
         if 'server' in locals():
             server.close()
 
-def run_admin_bot():
+async def run_admin_bot():
     """Run the admin bot"""
     try:
         logger.info("Starting Admin Bot...")
         logger.debug(f"Admin Bot Token: {admin_bot.ADMIN_TOKEN[:10]}...")
         
         # Add delay to prevent simultaneous polling
-        time.sleep(1)
+        await asyncio.sleep(2)
         
         application = Application.builder().token(admin_bot.ADMIN_TOKEN).build()
 
@@ -71,28 +72,29 @@ def run_admin_bot():
         logger.info("Admin Bot is ready!")
         logger.debug("Starting polling")
         
-        # Start polling without port parameter
-        application.run_polling(
+        # Start polling with different interval
+        await application.run_polling(
             allowed_updates=admin_bot.Update.ALL_TYPES,
             drop_pending_updates=True,
             read_timeout=30,
             write_timeout=30,
             connect_timeout=30,
-            pool_timeout=30
+            pool_timeout=30,
+            poll_interval=1.0  # Poll every 1 second
         )
             
     except Exception as e:
         logger.error(f"Error in Admin Bot: {str(e)}", exc_info=True)
         sys.exit(1)
 
-def run_student_bot():
+async def run_student_bot():
     """Run the student search bot"""
     try:
         logger.info("Starting Student Search Bot...")
         logger.debug(f"Student Bot Token: {telegram_bot.TOKEN[:10]}...")
         
         # Add delay to prevent simultaneous polling
-        time.sleep(2)
+        await asyncio.sleep(3)
         
         application = Application.builder().token(telegram_bot.TOKEN).build()
 
@@ -121,14 +123,15 @@ def run_student_bot():
         logger.info("Student Search Bot is ready!")
         logger.debug("Starting polling")
         
-        # Start polling without port parameter
-        application.run_polling(
+        # Start polling with different interval
+        await application.run_polling(
             allowed_updates=telegram_bot.Update.ALL_TYPES,
             drop_pending_updates=True,
             read_timeout=30,
             write_timeout=30,
             connect_timeout=30,
-            pool_timeout=30
+            pool_timeout=30,
+            poll_interval=1.5  # Poll every 1.5 seconds
         )
             
     except Exception as e:
@@ -140,7 +143,7 @@ def signal_handler(signum, frame):
     logger.info("Received termination signal. Shutting down bots...")
     sys.exit(0)
 
-def main():
+async def main():
     """Run both bots concurrently"""
     try:
         # Register signal handlers
@@ -154,33 +157,18 @@ def main():
         health_thread.start()
         logger.debug("Health check thread started")
         
-        # Create processes for each bot
-        admin_process = multiprocessing.Process(target=run_admin_bot, name="AdminBot")
-        student_process = multiprocessing.Process(target=run_student_bot, name="StudentBot")
+        # Create tasks for both bots
+        admin_task = asyncio.create_task(run_admin_bot())
+        student_task = asyncio.create_task(run_student_bot())
         
-        # Start both processes with delay between them
-        logger.debug("Starting Admin Bot process...")
-        admin_process.start()
-        time.sleep(1)  # Wait 1 second before starting student bot
-        
-        logger.debug("Starting Student Bot process...")
-        student_process.start()
-        
-        # Wait for both processes to complete
-        admin_process.join()
-        student_process.join()
+        # Wait for both tasks to complete
+        await asyncio.gather(admin_task, student_task)
         
     except KeyboardInterrupt:
         logger.info("\nBots stopped by user")
-        admin_process.terminate()
-        student_process.terminate()
     except Exception as e:
         logger.error(f"Error in main process: {str(e)}", exc_info=True)
-        if 'admin_process' in locals():
-            admin_process.terminate()
-        if 'student_process' in locals():
-            student_process.terminate()
         sys.exit(1)
 
 if __name__ == "__main__":
-    main() 
+    asyncio.run(main()) 
