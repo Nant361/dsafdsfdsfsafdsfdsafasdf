@@ -82,7 +82,8 @@ async def run_admin_bot():
             write_timeout=30,
             connect_timeout=30,
             pool_timeout=30,
-            poll_interval=1.0  # Poll every 1 second
+            poll_interval=1.0,  # Poll every 1 second
+            close_loop=False  # Don't close the event loop
         )
             
     except Exception as e:
@@ -135,7 +136,8 @@ async def run_student_bot():
             write_timeout=30,
             connect_timeout=30,
             pool_timeout=30,
-            poll_interval=1.5  # Poll every 1.5 seconds
+            poll_interval=1.5,  # Poll every 1.5 seconds
+            close_loop=False  # Don't close the event loop
         )
             
     except Exception as e:
@@ -176,9 +178,20 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        # Create and set event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Run the main function
+        loop.run_until_complete(main())
     except KeyboardInterrupt:
         logger.info("\nBots stopped by user")
     except Exception as e:
         logger.error(f"Fatal error: {str(e)}", exc_info=True)
-        sys.exit(1) 
+        sys.exit(1)
+    finally:
+        # Clean up the event loop
+        try:
+            loop.close()
+        except Exception as e:
+            logger.error(f"Error closing event loop: {str(e)}") 
