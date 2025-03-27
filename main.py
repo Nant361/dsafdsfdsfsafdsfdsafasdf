@@ -118,6 +118,7 @@ async def poll_updates(app, name, interval=1.0):
     allowed_updates = None
     timeout = 30
     read_timeout = timeout + 5
+    last_update_id = 0  # Track last processed update ID
     
     if name == "Admin Bot":
         allowed_updates = admin_bot.Update.ALL_TYPES
@@ -133,16 +134,17 @@ async def poll_updates(app, name, interval=1.0):
                 
                 # Get updates directly using the bot's get_updates method
                 updates = await app.bot.get_updates(
+                    offset=last_update_id + 1,  # Start from last processed update + 1
                     timeout=timeout,
                     read_timeout=read_timeout,
                     allowed_updates=allowed_updates,
-                    offset=-1,  # Get only latest updates
                     limit=10,
                 )
                 
                 # Process each update
                 for update in updates:
                     await app.process_update(update)
+                    last_update_id = max(last_update_id, update.update_id)
                     logger.debug(f"{name} processed update: {update.update_id}")
                 
             except asyncio.CancelledError:
