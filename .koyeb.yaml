@@ -10,11 +10,14 @@ services:
       max_instances: 1
     ports:
       - port: 8000
-        protocol: http
+        protocol: tcp
     healthcheck:
-      http:
-        path: /
+      tcp:
         port: 8000
+        grace_period: 5s
+        interval: 30s
+        restart_limit: 3
+        timeout: 5s
     builder:
       name: docker
       dockerfile_path: Dockerfile

@@ -5,6 +5,8 @@ import admin_bot
 import telegram_bot
 import signal
 import sys
+import socket
+import threading
 
 # Setup logging
 logging.basicConfig(
@@ -12,6 +14,31 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+def health_check_server():
+    """Run a simple TCP server for health checks"""
+    try:
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(('0.0.0.0', 8000))
+        server.listen(1)
+        
+        logger.info("Health check server listening on port 8000")
+        
+        while True:
+            try:
+                client, addr = server.accept()
+                logger.debug(f"Health check connection from {addr}")
+                client.send(b'OK\n')
+                client.close()
+            except Exception as e:
+                logger.error(f"Error handling health check connection: {str(e)}")
+                
+    except Exception as e:
+        logger.error(f"Error starting health check server: {str(e)}")
+    finally:
+        if 'server' in locals():
+            server.close()
 
 def run_admin_bot():
     """Run the admin bot"""
@@ -88,6 +115,10 @@ def main():
         signal.signal(signal.SIGTERM, signal_handler)
         
         logger.info("Starting both bots...")
+        
+        # Start health check server in a separate thread
+        health_thread = threading.Thread(target=health_check_server, daemon=True)
+        health_thread.start()
         
         # Create processes for each bot
         admin_process = multiprocessing.Process(target=run_admin_bot, name="AdminBot")
