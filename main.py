@@ -69,12 +69,11 @@ def run_admin_bot():
             logger.debug(f"Added handler: {handler.__class__.__name__}")
 
         logger.info("Admin Bot is ready!")
-        logger.debug("Starting polling on port 8443")
+        logger.debug("Starting polling")
         
-        # Use a different port for admin bot
+        # Start polling without port parameter
         application.run_polling(
             allowed_updates=admin_bot.Update.ALL_TYPES,
-            port=8443,
             drop_pending_updates=True,
             read_timeout=30,
             write_timeout=30,
@@ -120,12 +119,11 @@ def run_student_bot():
             logger.debug(f"Added handler: {handler.__class__.__name__}")
 
         logger.info("Student Search Bot is ready!")
-        logger.debug("Starting polling on port 8444")
+        logger.debug("Starting polling")
         
-        # Use a different port for student bot
+        # Start polling without port parameter
         application.run_polling(
             allowed_updates=telegram_bot.Update.ALL_TYPES,
-            port=8444,
             drop_pending_updates=True,
             read_timeout=30,
             write_timeout=30,
